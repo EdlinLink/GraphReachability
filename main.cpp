@@ -4,11 +4,11 @@
 #include "Node.h"
 #include "Edge.h"
 #include "Query.h"
-#include "NodeDist.h"
+#include <time.h>
 #include <fstream>
 #include <stdio.h>
 #include <set>
-#define INF 999999999
+#include <cstring>
 
 using namespace std;
 
@@ -18,49 +18,61 @@ long totalQuery;
 set<long> rootSet;	//record all the root
 
 Node * allNode;
-priority_queue<Edge> edgeQueue;	//edge queue
+//priority_queue<Edge> edgeQueue;	//edge queue
+queue<Edge> edgeQueue;	//edge queue
+vector<Edge> edgeVec;
 Query * allQuery;
+FILE *fp;
 
-void Kruskal();
+void Kruskal(char *);
 long Find(long);
 void Union(long, long, long);
 void LabelNode();
 
-void DoQuery();
-void RealQuery();
-void OutputResult();
+void DoQuery(char *);
+void RealQuery(char *);
+void OutputResult(char *);
 
 void MST();
-void testing();
 
 void Ending(){
 	delete []allNode;
 	delete []allQuery;
 }
 
-int main(){
-	FILE *fp;
-	fp = fopen("facebook-hour.txt", "r");
+int main(int argc, char ** argv){
+
+	if(argc!=5){
+		printf("### Error! The program usage is like:\n### WCR.exe facebook-hour.txt facebook-query-1.txt result.txt time.txt\n");
+		return 0;
+	}
+	fp = fopen(argv[1], "r");
 	fscanf(fp, "%ld%ld", &totalNode, &totalEdge);
-	
+
 	allNode = new Node[totalNode+1];	//please pay attention to +1 here
 	for(long i=1; i<totalNode+1; i++){
 		allNode[i].label = i;
 		allNode[i].father = i;
 		allNode[i].dist = 0;
 	}
-
+	
 	Edge e;
 	for(long i=0; i<totalEdge; i++){
 		fscanf(fp, "%ld%ld%ld", &e.v1, &e.v2, &e.dist);
-		edgeQueue.push(e);
+		edgeVec.push_back(e);
 	}
 
-	Kruskal();
+	sort(edgeVec.begin(), edgeVec.end());
+	for(long i=totalEdge-1; i>=0; i--){
+		edgeQueue.push(edgeVec[i]);
+	}
+
+
+	Kruskal(argv[4]);
 	
-	DoQuery();
-	RealQuery();
-	OutputResult();
+	DoQuery(argv[2]);
+	RealQuery(argv[4]);
+	OutputResult(argv[3]);
 
 	Ending();
 	return 0;
@@ -68,10 +80,12 @@ int main(){
 
 
 
-void Kruskal(){
+void Kruskal(char * timeFile){
+	clock_t start, end;
+	start = clock();
 	Edge e;
 	while(!edgeQueue.empty()){
-		e = edgeQueue.top();
+		e = edgeQueue.front();
 		edgeQueue.pop();
 		if(Find(e.v1)!=Find(e.v2)){
 			Union(e.v1, e.v2, e.dist);
@@ -86,7 +100,14 @@ void Kruskal(){
 		}
 	}
 
-	MST();
+	MST();	//really construct the tree  
+	end = clock();
+	
+	fp = fopen(timeFile, "w");
+	double ConstructTime = (double)(end-start)/CLOCKS_PER_SEC;
+	fprintf(fp, "MST Construct Time: %lf s\n", ConstructTime);
+	fprintf(fp, "MST Size: %ld kb\n", sizeof(Node)*totalNode/1024);
+	fclose(fp);
 }
 
 
@@ -127,8 +148,6 @@ void MST(){
 	}
 }
 
-
-
 long Find(long n){
 	long current = n;
 
@@ -161,10 +180,8 @@ void Union(long a, long b, long d){
 	}
 }
 
-
-void DoQuery(){
-	FILE *fp;
-	fp = fopen("facebook-query-1.txt", "r");
+void DoQuery(char *queryFile){
+	fp = fopen(queryFile, "r");
 	fscanf(fp, "%ld", &totalQuery);
 
 	allQuery = new Query[totalQuery];
@@ -173,13 +190,14 @@ void DoQuery(){
 	}
 
 	fclose(fp);
-
 }
 
-void RealQuery(){
+void RealQuery(char * timeFile){
+	clock_t start, end;
+	start = clock();
+
 	long a, b, limit;
 	int canReach;
-	long sequenceNo = 1;
 	for(long i=0; i<totalQuery; i++){
 		
 		a = allQuery[i].a;
@@ -194,28 +212,6 @@ void RealQuery(){
 		}
 
 
-
-		//---------------------------------
-		/*
-			long ta = a;
-			long tb = b;
-			while(ta!=allNode[ta].father){
-				cout<<"<-"<<ta<<" "<<allNode[ta].father<<" "<<allNode[ta].dist<<" "<<allNode[ta].layer<<endl;
-				ta = allNode[ta].father;
-			}
-			
-			cout<<endl;
-			while(tb!=allNode[tb].father){
-				cout<<"->"<<tb<<" "<<allNode[tb].father<<" "<<allNode[tb].dist<<" "<<allNode[tb].layer<<endl;
-				tb = allNode[tb].father;
-			}
-			cout<<endl<<endl;
-		*/
-		//---------------------------------
-		
-	
-
-
 		//Get to the same layer
 		if(canReach == 1){
 			while(allNode[a].layer > allNode[b].layer){
@@ -228,7 +224,6 @@ void RealQuery(){
 				}
 			}
 
-			cout <<endl;
 			while(allNode[a].layer < allNode[b].layer){
 				if(allNode[b].dist > limit){
 					canReach = 3;
@@ -263,18 +258,22 @@ void RealQuery(){
 			allQuery[i].label = 0;
 
 	}
+	end = clock();
+	double QueryTime = (double)(end-start)/CLOCKS_PER_SEC;
+
+	fp = fopen(timeFile, "a+");
+	fprintf(fp, "Query Processing Time: %lf s\n", QueryTime);
+	fclose(fp);
 }
 
-void OutputResult(){
-	FILE *fp;
-	fp = fopen("result-1.txt", "w");
+void OutputResult(char * resultFile){
+	fp = fopen(resultFile, "w");
 
 	for(long i=0; i<totalQuery; i++){
 		if(allQuery[i].label == 1)
-			fprintf(fp, "Yes\r\n");
+			fprintf(fp, "Yes\n");
 		else
-			fprintf(fp, "No\r\n");
-
+			fprintf(fp, "No\n");
 	}
 
 	fclose(fp);
